@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+    <meta name="theme-color" content="#111111">
+
+    <title>LoopTime</title>
+
+    <link rel="icon" href="image/favicon.ico">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <main class="game-container">
+
+        <header class="game-header">
+            <h1>LoopTime</h1>
+
+            <div class="game-stats">
+                <span id="gold">Золото: 0</span>
+                <span id="level">Уровень: 1</span>
+                <span id="time">Время: 0</span>
+            </div>
+        </header>
+
+        <div class="game-layout">
+
+            <section class="game-board">
+                <canvas id="game"></canvas>
+            </section>
+
+            <section class="mobile-controls">
+
+                <div class="movement-controls">
+                    <button class="control-btn up"
+                            data-direction="up">▲</button>
+
+                    <button class="control-btn left"
+                            data-direction="left">◀</button>
+
+                    <button class="control-btn down"
+                            data-direction="down">▼</button>
+
+                    <button class="control-btn right"
+                            data-direction="right">▶</button>
+                </div>
+
+                <div class="action-controls">
+                    <button id="restart">Повторить</button>
+                    <button id="next-player">Следующий игрок</button>
+                    <button id="next-level">Следующий уровень</button>
+                    <button id="fullscreen">На весь экран</button>
+                </div>
+
+            </section>
+
+        </div>
+    </main>
+
+    <script src="js/levels.js"></script>
+    <script src="js/script.js"></script>
+</body>
+</html>
