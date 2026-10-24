@@ -487,12 +487,46 @@ function update_global_direction() {
     global_direction = latest ? latest.direction : standing;
 }
 
+/*
+ * Основной игровой шаг раньше выполнялся только раз в шесть кадров, поэтому
+ * pointerdown мог ждать до ~100 мс следующего шага. При новом удержании
+ * планируем один ранний шаг на ближайшем кадре отрисовки (обычно <16 мс),
+ * сохраняя обычный цикл и скорость дальнейшего движения.
+ */
+var immediate_input_frame = 0;
+
+function request_immediate_input_step() {
+    if (immediate_input_frame) return;
+
+    var request_frame = window.requestAnimationFrame || function (callback) {
+        return window.setTimeout(callback, 0);
+    };
+
+    immediate_input_frame = request_frame(function () {
+        immediate_input_frame = 0;
+
+        // Если кнопку уже отпустили, лишний игровой шаг не нужен.
+        if (global_direction === standing) return;
+
+        // При halfway == 0 обычный таймер уже выполнит шаг не позднее следующего кадра.
+        if (halfway === 0) return;
+
+        // Завершаем текущую фазу анимации и запускаем следующий игровой шаг сразу.
+        // Это устраняет ощущаемую задержку, не меняя правила столкновений/уровней.
+        halfway = 0;
+        move_objects();
+        draw();
+        halfway = 1;
+    });
+}
+
 function press_direction(source, direction) {
     active_direction_sources[source] = {
         direction: direction,
         order: ++input_order
     };
     update_global_direction();
+    request_immediate_input_step();
 }
 
 function release_direction(source) {
