@@ -865,7 +865,38 @@ document.addEventListener('visibilitychange', function () {
     if (document.hidden) reset_pressed_controls();
 });
 
-window.addEventListener('resize', draw);
+/* На телефонах высота меняется не только при resize: браузерная панель,
+ * поворот, split view и вход в fullscreen меняют Visual Viewport/размер поля.
+ * Один отложенный draw на кадр не создаёт лишних перерисовок. */
+var scheduled_draw_frame = 0;
+
+function schedule_draw() {
+    if (scheduled_draw_frame) return;
+
+    var request_frame = window.requestAnimationFrame || function (callback) {
+        return window.setTimeout(callback, 0);
+    };
+
+    scheduled_draw_frame = request_frame(function () {
+        scheduled_draw_frame = 0;
+        draw();
+    });
+}
+
+var game_board = document.querySelector('.game-board');
+if (window.ResizeObserver && game_board) {
+    new ResizeObserver(schedule_draw).observe(game_board);
+}
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', schedule_draw);
+    window.visualViewport.addEventListener('scroll', schedule_draw);
+}
+
+window.addEventListener('resize', schedule_draw);
 window.addEventListener('orientationchange', function () {
-    setTimeout(draw, 100);
+    // На iOS размеры иногда стабилизируются через несколько кадров после поворота.
+    schedule_draw();
+    setTimeout(schedule_draw, 120);
+    setTimeout(schedule_draw, 350);
 });

@@ -6,7 +6,8 @@ html,
 body {
     margin: 0;
     width: 100%;
-    height: 100%;
+    height: 100vh; /* fallback для браузеров без dynamic viewport units */
+    height: 100dvh;
     min-height: 100dvh;
     background: #111;
     color: #fff;
@@ -55,7 +56,9 @@ button.is-pressed {
 
 .game-container {
     width: 100%;
-    height: 100%;
+    height: 100vh; /* fallback */
+    height: 100dvh;
+    min-height: 0;
     max-width: 1200px;
     display: flex;
     flex-direction: column;
@@ -192,28 +195,26 @@ button.is-pressed {
     display: none;
 }
 
-/* Планшеты и телефоны: D-pad лежит поверх game-layout, но нижний/боковой
- * отступ у поля резервирует для него место, поэтому карта не перекрывается. */
+/* На телефонах управление получает собственную строку под игрой.
+ * Кнопки не являются overlay и физически не могут закрыть холст. */
 @media (pointer: coarse), (max-width: 700px) {
     .game-layout {
-        --controls-size: 192px;
-    }
-
-    .mobile-controls {
-        position: absolute;
-        z-index: 4;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        display: block;
-        padding: 0 max(12px, env(safe-area-inset-right, 0px))
-            max(12px, env(safe-area-inset-bottom, 0px))
-            max(12px, env(safe-area-inset-left, 0px));
-        pointer-events: none;
+        flex-direction: column;
+        gap: 10px;
     }
 
     .game-board {
-        padding-bottom: var(--controls-size);
+        padding: 0;
+    }
+
+    .mobile-controls {
+        position: static;
+        z-index: auto;
+        display: block;
+        flex: 0 0 auto;
+        width: 100%;
+        padding: 0 12px 12px;
+        pointer-events: auto;
     }
 
     .movement-controls {
@@ -223,7 +224,6 @@ button.is-pressed {
         justify-content: center;
         gap: 12px;
         margin: 0 auto;
-        pointer-events: auto;
     }
 
     /* Полупрозрачные квадратные кнопки в духе тач-управления Minecraft.
@@ -277,11 +277,34 @@ button.is-pressed {
     .right { grid-column: 3; grid-row: 2; }
 }
 
-/* Альбомный телефон: оставляем 48px минимум, переносим D-pad в левый нижний угол
- * и резервируем боковую зону, чтобы увеличить полезную высоту карты. */
+/* Низкий портретный экран (телефон с раскрытой клавиатурой, split view и т. п.).
+ * Минимум 48px остаётся, зато у карты появляется ещё немного высоты. */
+@media (max-width: 700px) and (orientation: portrait) and (max-height: 640px) {
+    .movement-controls {
+        grid-template-columns: repeat(3, 48px);
+        grid-template-rows: repeat(2, 48px);
+        gap: 10px;
+    }
+
+    .control-btn {
+        width: 48px;
+        min-width: 48px;
+        height: 48px;
+        min-height: 48px;
+        font-size: 21px;
+    }
+
+    .game-stats {
+        gap: 4px 10px;
+        font-size: 12px;
+    }
+}
+
+/* Альбомный телефон: D-pad занимает отдельную левую колонку, а не слой над картой. */
 @media (pointer: coarse) and (orientation: landscape) {
     .game-layout {
-        --controls-size: 178px;
+        flex-direction: row;
+        gap: 12px;
     }
 
     .game-header h1 {
@@ -294,21 +317,16 @@ button.is-pressed {
     }
 
     .mobile-controls {
-        top: 0;
-        right: auto;
+        order: -1;
         display: flex;
         align-items: flex-end;
-        width: var(--controls-size);
-        padding:
-            max(8px, env(safe-area-inset-top, 0px))
-            0
-            max(8px, env(safe-area-inset-bottom, 0px))
-            max(8px, env(safe-area-inset-left, 0px));
+        flex: 0 0 172px;
+        width: 172px;
+        padding: 8px 0;
     }
 
     .game-board {
-        padding-bottom: 0;
-        padding-left: var(--controls-size);
+        padding: 0;
     }
 
     .movement-controls {
