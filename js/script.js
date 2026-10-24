@@ -203,15 +203,19 @@ function update_camera() {
     var available_width = board ? board.clientWidth : window.innerWidth;
     var available_height = board ? board.clientHeight : window.innerHeight;
 
-    var isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
-
-    if (isFullscreen) {
-        available_width = window.innerWidth;
-        available_height = window.innerHeight;
+    // clientWidth/clientHeight включают padding. На мобильных этот padding
+    // резервируется под экранные кнопки, поэтому холст считает только контентную
+    // область и не оказывается под D-pad.
+    if (board) {
+        var board_style = window.getComputedStyle(board);
+        available_width -= parseFloat(board_style.paddingLeft) + parseFloat(board_style.paddingRight);
+        available_height -= parseFloat(board_style.paddingTop) + parseFloat(board_style.paddingBottom);
     }
 
-    available_width = Math.max(160, available_width);
-    available_height = Math.max(160, available_height);
+    // Достаточно места для минимального окна 3x3 клетки по 28px. Это важнее,
+    // чем прежний минимум 160px на очень низких экранах в landscape.
+    available_width = Math.max(84, available_width);
+    available_height = Math.max(84, available_height);
 
     var max_cols = area[0].length;
     var max_rows = area.length;
@@ -456,37 +460,178 @@ function get_direction(e) {
     if (code == 'ArrowRight') return right;
     if (code == 'ArrowUp') return up;
     if (code == 'ArrowDown') return down;
-    if (code == 'Space' && moves.length < levels[number_level].player.length) {
-        load_level_to_area_and_area_old(number_level);
+    return standing;
+}
+
+/*
+ * Источники направления хранятся отдельно: так отпускание одного пальца
+ * не отменяет вторую всё ещё удерживаемую кнопку. Игра по-прежнему принимает
+ * одно направление за кадр — используется последнее из активных направлений.
+ */
+var active_direction_sources = {};
+var input_order = 0;
+var active_pointers = {};
+var mobileButtons = document.querySelectorAll('.control-btn');
+var mobileDirections = { up: up, down: down, left: left, right: right };
+
+function update_global_direction() {
+    var latest = null;
+
+    Object.keys(active_direction_sources).forEach(function (source) {
+        var item = active_direction_sources[source];
+        if (!latest || item.order > latest.order) {
+            latest = item;
+        }
+    });
+
+    global_direction = latest ? latest.direction : standing;
+}
+
+function press_direction(source, direction) {
+    active_direction_sources[source] = {
+        direction: direction,
+        order: ++input_order
+    };
+    update_global_direction();
+}
+
+function release_direction(source) {
+    if (active_direction_sources[source]) {
+        delete active_direction_sources[source];
+        update_global_direction();
     }
-    if (code == 'KeyN') next_level();
-    if (code == 'KeyS') {
+}
+
+function button_has_active_pointer(button) {
+    return Object.keys(active_pointers).some(function (pointerId) {
+        return active_pointers[pointerId] === button;
+    });
+}
+
+function release_pointer(pointerId) {
+    var button = active_pointers[pointerId];
+    if (!button) return;
+
+    delete active_pointers[pointerId];
+    release_direction('pointer-' + pointerId);
+
+    if (!button_has_active_pointer(button)) {
+        button.classList.remove('is-pressed');
+    }
+}
+
+function reset_pressed_controls() {
+    active_direction_sources = {};
+    active_pointers = {};
+    global_direction = standing;
+
+    mobileButtons.forEach(function (button) {
+        button.classList.remove('is-pressed');
+    });
+}
+
+mobileButtons.forEach(function (button) {
+    button.addEventListener('pointerdown', function (e) {
+        // Правой кнопкой мыши не управляем, но принимаем все пальцы на тач-экране.
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+        e.preventDefault();
+        var pointerId = e.pointerId;
+        active_pointers[pointerId] = button;
+        press_direction('pointer-' + pointerId, mobileDirections[button.dataset.direction]);
+        button.classList.add('is-pressed');
+
+        // Pointer Capture гарантирует pointerup даже за пределами кнопки.
+        if (button.setPointerCapture) {
+            try {
+                button.setPointerCapture(pointerId);
+            } catch (ignore) {
+                // Некоторые браузеры не дают захватить указатель в редких случаях.
+            }
+        }
+    }, { passive: false });
+
+    function stop_moving(e) {
+        if (e.cancelable) e.preventDefault();
+        release_pointer(e.pointerId);
+    }
+
+    button.addEventListener('pointerup', stop_moving, { passive: false });
+    button.addEventListener('pointercancel', stop_moving, { passive: false });
+    button.addEventListener('lostpointercapture', stop_moving, { passive: false });
+});
+
+// Запасной путь для случаев, когда браузер отменил захват до доставки события кнопке.
+document.addEventListener('pointerup', function (e) {
+    release_pointer(e.pointerId);
+}, { passive: true });
+document.addEventListener('pointercancel', function (e) {
+    release_pointer(e.pointerId);
+}, { passive: true });
+
+function restart_level() {
+    reset_pressed_controls();
+    moves.pop();
+    load_level_to_area_and_area_old(number_level);
+    draw();
+}
+
+function select_next_player() {
+    reset_pressed_controls();
+    if (moves.length < levels[number_level].player.length) {
+        load_level_to_area_and_area_old(number_level);
+        draw();
+    }
+}
+
+function select_next_level() {
+    reset_pressed_controls();
+    next_level();
+}
+
+function run_keyboard_command(e) {
+    if (e.code == 'Space') {
+        select_next_player();
+    }
+    if (e.code == 'KeyN') {
+        select_next_level();
+    }
+    if (e.code == 'KeyS') {
+        reset_pressed_controls();
         count_gold -= cur_count_gold;
         --number_level;
         next_level();
     }
-    if (code == 'KeyR') {
-        moves.pop();
-        load_level_to_area_and_area_old(number_level);
+    if (e.code == 'KeyR') {
+        restart_level();
     }
-    return standing;
 }
 
 document.addEventListener('keydown', function (e) {
-    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].indexOf(e.code) !== -1) {
-        e.preventDefault();
+    if (e.code == 'Escape') {
+        close_game_menu();
+        return;
     }
 
     var cur_direction = get_direction(e);
     if (cur_direction !== standing) {
-        global_direction = cur_direction;
+        e.preventDefault();
+        // Автоповтор не должен делать клавишу «новее» другого удерживаемого ввода.
+        if (!active_direction_sources['key-' + e.code]) {
+            press_direction('key-' + e.code, cur_direction);
+        }
+        return;
     }
+
+    if (e.code == 'Space') e.preventDefault();
+    if (!e.repeat) run_keyboard_command(e);
 });
 
 document.addEventListener('keyup', function (e) {
     var cur_direction = get_direction(e);
-    if (cur_direction == global_direction) {
-        global_direction = standing;
+    if (cur_direction !== standing) {
+        e.preventDefault();
+        release_direction('key-' + e.code);
     }
 });
 
@@ -585,89 +730,106 @@ function go() {
         halfway = 0;
     }
 }
-
 draw();
-
-window.onblur = function () {
-    global_direction = standing;
-};
-
 setInterval(go, 1000 / 60);
 
-var mobileButtons = document.querySelectorAll('.control-btn');
-var mobileDirections = { up: up, down: down, left: left, right: right };
+/* Меню игры. Обычный click здесь оставлен намеренно: Fullscreen API требует
+ * пользовательской активации, а у управляющих стрелок click-обработчиков нет. */
+var menu_toggle = document.getElementById('menu-toggle');
+var game_menu = document.getElementById('game-menu');
+var game_menu_wrap = document.querySelector('.game-menu-wrap');
+var fullscreen_button = document.getElementById('fullscreen');
 
-mobileButtons.forEach(function (button) {
-    button.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        global_direction = mobileDirections[button.dataset.direction];
-        button.setPointerCapture(e.pointerId);
-    });
+function open_game_menu() {
+    game_menu.hidden = false;
+    menu_toggle.setAttribute('aria-expanded', 'true');
+    menu_toggle.setAttribute('aria-label', 'Закрыть меню игры');
+}
 
-    function stopMoving(e) {
-        e.preventDefault();
-        if (global_direction === mobileDirections[button.dataset.direction]) {
-            global_direction = standing;
-        }
+function close_game_menu() {
+    game_menu.hidden = true;
+    menu_toggle.setAttribute('aria-expanded', 'false');
+    menu_toggle.setAttribute('aria-label', 'Открыть меню игры');
+}
+
+function toggle_game_menu() {
+    if (game_menu.hidden) {
+        open_game_menu();
+    } else {
+        close_game_menu();
     }
+}
 
-    button.addEventListener('pointerup', stopMoving);
-    button.addEventListener('pointercancel', stopMoving);
-    button.addEventListener('lostpointercapture', stopMoving);
+menu_toggle.addEventListener('click', function () {
+    toggle_game_menu();
+});
+
+document.addEventListener('pointerdown', function (e) {
+    if (!game_menu_wrap.contains(e.target)) {
+        close_game_menu();
+    }
 });
 
 document.getElementById('restart').addEventListener('click', function () {
-    global_direction = standing;
-    moves.pop();
-    load_level_to_area_and_area_old(number_level);
-    draw();
+    restart_level();
+    close_game_menu();
 });
 
 document.getElementById('next-player').addEventListener('click', function () {
-    global_direction = standing;
-    if (moves.length < levels[number_level].player.length) {
-        load_level_to_area_and_area_old(number_level);
-        draw();
-    }
+    select_next_player();
 });
 
 document.getElementById('next-level').addEventListener('click', function () {
-    global_direction = standing;
-    next_level();
+    select_next_level();
+    close_game_menu();
 });
 
-var fullscreen_button = document.getElementById('fullscreen');
-
-fullscreen_button.addEventListener('click', async function () {
+function toggle_fullscreen() {
     var container = document.documentElement;
+    var is_fullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    var request = container.requestFullscreen || container.webkitRequestFullscreen;
+    var exit = document.exitFullscreen || document.webkitExitFullscreen;
 
     try {
-        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-            if (container.requestFullscreen) {
-                await container.requestFullscreen();
-            } else if (container.webkitRequestFullscreen) {
-                await container.webkitRequestFullscreen();
-            }
+        var result;
+        if (is_fullscreen) {
+            if (!exit) return;
+            result = exit.call(document);
         } else {
-            if (document.exitFullscreen) {
-                await document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-                await document.webkitExitFullscreen();
-            }
+            // На неподдерживающих браузерах просто ничего не делаем: игра остаётся доступной.
+            if (!request) return;
+            result = request.call(container);
+        }
+
+        if (result && result.catch) {
+            result.catch(function (error) {
+                console.warn('Полноэкранный режим недоступен:', error);
+            });
         }
     } catch (error) {
-        console.error('Ошибка полноэкранного режима:', error);
+        console.warn('Полноэкранный режим недоступен:', error);
     }
+}
+
+fullscreen_button.addEventListener('click', function () {
+    toggle_fullscreen();
+    close_game_menu();
 });
 
 function handleFullscreenChange() {
     var isFS = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    fullscreen_button.textContent = isFS ? 'Выйти' : 'На весь экран';
+    fullscreen_button.textContent = isFS ? 'Выйти из полноэкранного режима' : 'На весь экран';
     draw();
 }
 
 document.addEventListener('fullscreenchange', handleFullscreenChange);
 document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+// Если вкладка/страница потеряла управление, оставшихся «зажатых» направлений быть не должно.
+window.addEventListener('blur', reset_pressed_controls);
+document.addEventListener('visibilitychange', function () {
+    if (document.hidden) reset_pressed_controls();
+});
 
 window.addEventListener('resize', draw);
 window.addEventListener('orientationchange', function () {

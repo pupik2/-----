@@ -2,24 +2,42 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#111111">
-
     <title>LoopTime</title>
-
     <link rel="icon" href="image/favicon.ico">
     <link rel="stylesheet" href="css/style.css">
 </head>
-
 <body>
     <main class="game-container">
-
         <header class="game-header">
-            <h1>LoopTime</h1>
+            <div class="header-main-row">
+                <h1>LoopTime</h1>
 
-            <div class="game-stats">
+                <div class="game-toolbar">
+                    <button id="next-player" class="next-player-button" type="button">
+                        Следующий игрок
+                    </button>
+
+                    <div class="game-menu-wrap">
+                        <button id="menu-toggle" class="menu-toggle" type="button"
+                                aria-label="Открыть меню игры"
+                                aria-haspopup="true" aria-controls="game-menu"
+                                aria-expanded="false">
+                            <span aria-hidden="true">☰</span>
+                            <span class="visually-hidden">Меню игры</span>
+                        </button>
+
+                        <div id="game-menu" class="game-menu" role="menu" hidden>
+                            <button id="restart" type="button" role="menuitem">Повторить</button>
+                            <button id="next-level" type="button" role="menuitem">Следующий уровень</button>
+                            <button id="fullscreen" type="button" role="menuitem">На весь экран</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="game-stats" aria-live="polite">
                 <span id="gold">Золото: 0</span>
                 <span id="level">Уровень: 1</span>
                 <span id="time">Время: 0</span>
@@ -27,36 +45,20 @@
         </header>
 
         <div class="game-layout">
-
-            <section class="game-board">
+            <section class="game-board" aria-label="Игровое поле">
                 <canvas id="game"></canvas>
             </section>
 
-            <section class="mobile-controls">
-
+            <!-- На сенсорных экранах блок располагается поверх области игры,
+                 а место для него резервируется стилями game-board. -->
+            <section class="mobile-controls" aria-label="Экранное управление">
                 <div class="movement-controls">
-                    <button class="control-btn up"
-                            data-direction="up">▲</button>
-
-                    <button class="control-btn left"
-                            data-direction="left">◀</button>
-
-                    <button class="control-btn down"
-                            data-direction="down">▼</button>
-
-                    <button class="control-btn right"
-                            data-direction="right">▶</button>
+                    <button class="control-btn up" type="button" data-direction="up" aria-label="Вверх">▲</button>
+                    <button class="control-btn left" type="button" data-direction="left" aria-label="Влево">◀</button>
+                    <button class="control-btn down" type="button" data-direction="down" aria-label="Вниз">▼</button>
+                    <button class="control-btn right" type="button" data-direction="right" aria-label="Вправо">▶</button>
                 </div>
-
-                <div class="action-controls">
-                    <button id="restart">Повторить</button>
-                    <button id="next-player">Следующий игрок</button>
-                    <button id="next-level">Следующий уровень</button>
-                    <button id="fullscreen">На весь экран</button>
-                </div>
-
             </section>
-
         </div>
     </main>
 
